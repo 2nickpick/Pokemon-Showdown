@@ -15,7 +15,7 @@
 
 'use strict';
 
-const fs = require('fs');
+const FS = require('./fs');
 
 let Ladders = module.exports = getLadder;
 
@@ -23,6 +23,8 @@ Ladders.get = Ladders;
 
 // tells the client to ask the server for format information
 Ladders.formatsListPrefix = '|,LL';
+
+Ladders.disabled = false;
 
 // ladderCaches = {formatid: ladder OR Promise(ladder)}
 // Use Ladders(formatid).ladder to guarantee a Promise(ladder).
@@ -42,40 +44,34 @@ class Ladder {
 	/**
 	 * Internal function, returns a Promise for a ladder
 	 */
-	load() {
+	async load() {
 		// ladderCaches[formatid]
 		if (this.formatid in ladderCaches) {
 			let cachedLadder = ladderCaches[this.formatid];
 			if (cachedLadder.then) {
-				return cachedLadder.then(ladder => {
-					this.loadedLadder = ladder;
-					return ladder;
-				});
-			} else {
-				return Promise.resolve(this.loadedLadder = cachedLadder);
+				let ladder = await cachedLadder;
+				return (this.loadedLadder = ladder);
 			}
+			return (this.loadedLadder = cachedLadder);
 		}
-		return (ladderCaches[this.formatid] = new Promise((resolve, reject) => {
-			fs.readFile('config/ladders/' + this.formatid + '.tsv', (err, data) => {
-				if (err) {
-					this.loadedLadder = ladderCaches[this.formatid] = [];
-					// console.log('Ladders(' + this.formatid + ') err loading tsv: ' + JSON.stringify(this.loadedLadder));
-					resolve(this.loadedLadder);
-					return;
-				}
-				let ladder = [];
-				let dataLines = ('' + data).split('\n');
-				for (let i = 1; i < dataLines.length; i++) {
-					let line = dataLines[i].trim();
-					if (!line) continue;
-					let row = line.split('\t');
-					ladder.push([toId(row[1]), Number(row[0]), row[1], Number(row[2]), Number(row[3]), Number(row[4]), row[5]]);
-				}
-				this.loadedLadder = ladderCaches[this.formatid] = ladder;
-				// console.log('Ladders(' + this.formatid + ') loaded tsv: ' + JSON.stringify(this.loadedLadder));
-				resolve(this.loadedLadder);
-			});
-		}));
+		try {
+			const data = await FS('config/ladders/' + this.formatid + '.tsv').read('utf8');
+			let ladder = [];
+			let dataLines = data.split('\n');
+			for (let i = 1; i < dataLines.length; i++) {
+				let line = dataLines[i].trim();
+				if (!line) continue;
+				let row = line.split('\t');
+				ladder.push([toId(row[1]), Number(row[0]), row[1], Number(row[2]), Number(row[3]), Number(row[4]), row[5]]);
+			}
+			// console.log('Ladders(' + this.formatid + ') loaded tsv: ' + JSON.stringify(this.loadedLadder));
+			this.loadedLadder = ladderCaches[this.formatid] = ladder;
+			return this.loadedLadder;
+		} catch (err) {
+			// console.log('Ladders(' + this.formatid + ') err loading tsv: ' + JSON.stringify(this.loadedLadder));
+		}
+		this.loadedLadder = ladderCaches[this.formatid] = [];
+		return this.loadedLadder;
 	}
 
 	/**
@@ -97,7 +93,7 @@ class Ladder {
 			this.saving = false;
 			return;
 		}
-		let stream = fs.createWriteStream('config/ladders/' + this.formatid + '.tsv');
+		let stream = FS(`config/ladders/${this.formatid}.tsv`).createWriteStream();
 		stream.write('Elo\tUsername\tW\tL\tT\tLast update\r\n');
 		for (let i = 0; i < this.loadedLadder.length; i++) {
 			let row = this.loadedLadder[i];
@@ -133,7 +129,7 @@ class Ladder {
 	 */
 	getTop() {
 		let formatid = this.formatid;
-		let name = Tools.getFormat(formatid).name;
+		let name = Dex.getFormat(formatid).name;
 		return this.ladder.then(ladder => {
 			let buf = `<h3>${name} Top 100</h3>`;
 			buf += `<table>`;
@@ -154,11 +150,14 @@ class Ladder {
 	getRating(userid) {
 		let formatid = this.formatid;
 		let user = Users.getExact(userid);
+		if (Ladders.disabled === true || Ladders.disabled === 'db' && (!user || !user.mmrCache[formatid])) {
+			return Promise.reject(new Error(`Ladders are disabled.`));
+		}
 		if (user && user.mmrCache[formatid]) {
 			return Promise.resolve(user.mmrCache[formatid]);
 		}
 		return this.ladder.then(() => {
-			if (user.userid !== userid) return;
+			if (user.userid !== userid) return Promise.reject(`Expired rating for ${userid}`);
 			let index = this.indexOfUser(userid);
 			if (index < 0) return (user.mmrCache[formatid] = 1000);
 			return (user.mmrCache[formatid] = this.loadedLadder[index][1]);
@@ -212,7 +211,16 @@ class Ladder {
 	 * the results in the passed room.
 	 */
 	updateRating(p1name, p2name, p1score, room) {
+		if (Ladders.disabled) {
+			return room.addRaw(`Ratings not updated. The ladders are currently disabled.`).update();
+		}
+
 		let formatid = this.formatid;
+		let p2score = 1 - p1score;
+		if (p1score < 0) {
+			p1score = 0;
+			p2score = 0;
+		}
 		this.ladder.then(() => {
 			let p1newElo, p2newElo;
 			try {
@@ -223,7 +231,7 @@ class Ladder {
 				let p2elo = this.loadedLadder[p2index][1];
 
 				this.updateRow(this.loadedLadder[p1index], p1score, p2elo);
-				this.updateRow(this.loadedLadder[p2index], 1 - p1score, p1elo);
+				this.updateRow(this.loadedLadder[p2index], p2score, p1elo);
 
 				p1newElo = this.loadedLadder[p1index][1];
 				p2newElo = this.loadedLadder[p2index][1];
@@ -274,7 +282,7 @@ class Ladder {
 				if (reasons.charAt(0) !== '-') reasons = '+' + reasons;
 				room.addRaw(Chat.html`${p1name}'s rating: ${Math.round(p1elo)} &rarr; <strong>${Math.round(p1newElo)}</strong><br />(${reasons})`);
 
-				reasons = '' + (Math.round(p2newElo) - Math.round(p2elo)) + ' for ' + (p1score > 0.9 ? 'losing' : (p1score < 0.1 ? 'winning' : 'tying'));
+				reasons = '' + (Math.round(p2newElo) - Math.round(p2elo)) + ' for ' + (p2score > 0.9 ? 'winning' : (p2score < 0.1 ? 'losing' : 'tying'));
 				if (reasons.charAt(0) !== '-') reasons = '+' + reasons;
 				room.addRaw(Chat.html`${p2name}'s rating: ${Math.round(p2elo)} &rarr; <strong>${Math.round(p2newElo)}</strong><br />(${reasons})`);
 
@@ -286,7 +294,7 @@ class Ladder {
 				room.update();
 			}
 
-			if (!Tools.getFormat(formatid).noLog) {
+			if (!Dex.getFormat(formatid).noLog) {
 				room.logBattle(p1score, p1newElo, p2newElo);
 			}
 		});
@@ -313,8 +321,8 @@ class Ladder {
 	 */
 	static visualizeAll(username) {
 		let ratings = [];
-		for (let i in Tools.data.Formats) {
-			if (Tools.data.Formats[i].searchShow) {
+		for (let i in Dex.formats) {
+			if (Dex.formats[i].searchShow) {
 				ratings.push(Ladders(i).visualize(username));
 			}
 		}

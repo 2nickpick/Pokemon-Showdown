@@ -32,7 +32,7 @@ exports.BattleScripts = {
 			return this.modifiedStats[statName];
 		},
 		// Gen 1 function to apply a stat modification that is only active until the stat is recalculated or mon switched.
-		// Modified stats are declared in BattlePokemon object in battle-engine.js in about line 303.
+		// Modified stats are declared in the Pokemon object in sim/pokemon.js in about line 681.
 		modifyStat: function (stat, modifier) {
 			if (!(stat in this.stats)) return;
 			this.modifiedStats[stat] = this.battle.clampIntRange(Math.floor(this.modifiedStats[stat] * modifier), 1, 999);
@@ -70,7 +70,8 @@ exports.BattleScripts = {
 	// It deals with the beforeMove and AfterMoveSelf events.
 	// This leads with partial trapping moves shennanigans after the move has been used.
 	// It also deals with how PP reduction works on gen 1.
-	runMove: function (move, pokemon, target, sourceEffect) {
+	runMove: function (move, pokemon, targetLoc, sourceEffect) {
+		let target = this.getTarget(pokemon, move, targetLoc);
 		move = this.getMove(move);
 		if (!target) target = this.resolveTarget(pokemon, move);
 		if (target.subFainted) delete target.subFainted;
@@ -213,7 +214,7 @@ exports.BattleScripts = {
 		// Store 0 damage for last damage if move failed or dealt 0 damage.
 		// This only happens on moves that don't deal damage but call GetDamageVarsForPlayerAttack (disassembly).
 		if (!damage && (move.category !== 'Status' || (move.category === 'Status' && !(move.status in {'psn':1, 'tox':1, 'par':1}))) &&
-		!(move.id in {'conversion':1, 'haze':1, 'mist':1, 'focusenergy':1, 'confuseray':1, 'transform':1, 'lightscreen':1, 'reflect':1, 'substitute':1, 'mimic':1, 'leechseed':1, 'splash':1, 'softboiled':1, 'recover':1, 'rest':1})) {
+		!(move.id in {'conversion':1, 'haze':1, 'mist':1, 'focusenergy':1, 'confuseray':1, 'supersonic':1, 'transform':1, 'lightscreen':1, 'reflect':1, 'substitute':1, 'mimic':1, 'leechseed':1, 'splash':1, 'softboiled':1, 'recover':1, 'rest':1})) {
 			pokemon.battle.lastDamage = 0;
 		}
 
@@ -487,7 +488,14 @@ exports.BattleScripts = {
 			if (moveData.status) {
 				// Gen 1 bug: If the target has just used hyperbeam and must recharge, its status will be ignored and put to sleep.
 				// This does NOT revert the paralyse speed drop or the burn attack drop.
-				if (!target.status || moveData.status === 'slp' && target.volatiles['mustrecharge']) {
+				// Also, being put to sleep clears the recharge condition.
+				if (moveData.status === 'slp' && target.volatiles['mustrecharge']) {
+					// The sleep move is guaranteed to hit in this situation, unless Sleep Clause activates.
+					// Do not clear recharge in that case.
+					if (target.setStatus(moveData.status, pokemon, move)) {
+						target.removeVolatile('mustrecharge');
+					}
+				} else if (!target.status) {
 					if (target.setStatus(moveData.status, pokemon, move)) {
 						// Gen 1 mechanics: The burn attack drop and the paralyse speed drop are applied here directly on stat modifiers.
 						if (moveData.status === 'brn') target.modifyStat('atk', 0.5);
@@ -574,7 +582,7 @@ exports.BattleScripts = {
 
 		return damage;
 	},
-	// boost can be found on battle-engine.js on Battle object.
+	// boost can be found on sim/battle.js on Battle object.
 	// It deals with Pokémon stat boosting, including Gen 1 buggy behaviour with burn and paralyse.
 	boost: function (boost, target, source, effect) {
 		if (this.event) {
@@ -619,7 +627,7 @@ exports.BattleScripts = {
 		}
 		this.runEvent('AfterBoost', target, source, effect, boost);
 	},
-	// damage can be found in battle-engine.js on the Battle object. Not to confuse with BattlePokemon.prototype.damage
+	// damage can be found in sim/battle.js on the Battle object. Not to confuse with BattlePokemon.prototype.damage
 	// It calculates and executes the damage damage from source to target with effect.
 	// It also deals with recoil and drains.
 	damage: function (damage, target, source, effect) {
@@ -681,7 +689,7 @@ exports.BattleScripts = {
 
 		return damage;
 	},
-	// directDamage can be found on battle-engine.js in Battle object
+	// directDamage can be found on sim/battle.js in Battle object
 	// It deals direct damage damage from source to target with effect.
 	// It also deals with Gen 1 weird Substitute behaviour.
 	directDamage: function (damage, target, source, effect) {
@@ -722,7 +730,7 @@ exports.BattleScripts = {
 
 		return damage;
 	},
-	// getDamage can be found on battle-engine.js on the Battle object.
+	// getDamage can be found on sim/battle.js on the Battle object.
 	// It calculates the damage pokemon does to target with move.
 	getDamage: function (pokemon, target, move, suppressMessages) {
 		// First of all, we get the move.
@@ -939,423 +947,5 @@ exports.BattleScripts = {
 
 		// And we are done.
 		return Math.floor(damage);
-	},
-	// This is random teams making for gen 1.
-	// Challenge Cup or CC teams are basically fully random teams.
-	randomCCTeam: function (side) {
-		let team = [];
-
-		let hasDexNumber = {};
-		let formes = [[], [], [], [], [], []];
-
-		// Pick six random Pokémon, no repeats.
-		let num;
-		for (let i = 0; i < 6; i++) {
-			do {
-				num = this.random(151) + 1;
-			} while (num in hasDexNumber);
-			hasDexNumber[num] = i;
-		}
-
-		let formeCounter = 0;
-		for (let id in this.data.Pokedex) {
-			if (!(this.data.Pokedex[id].num in hasDexNumber)) continue;
-			let template = this.getTemplate(id);
-			if (!template.learnset || template.forme) continue;
-			formes[hasDexNumber[template.num]].push(template.species);
-			if (++formeCounter >= 6) {
-				// Gen 1 had no alternate formes, so we can break out of the loop already.
-				break;
-			}
-		}
-
-		for (let i = 0; i < 6; i++) {
-			// Choose forme.
-			let poke = formes[i][this.random(formes[i].length)];
-			let template = this.getTemplate(poke);
-
-			// Level balance: calculate directly from stats rather than using some silly lookup table.
-			let mbstmin = 1307;
-			let stats = template.baseStats;
-
-			// Modified base stat total assumes 15 DVs, 255 EVs in every stat
-			let mbst = (stats["hp"] * 2 + 30 + 63 + 100) + 10;
-			mbst += (stats["atk"] * 2 + 30 + 63 + 100) + 5;
-			mbst += (stats["def"] * 2 + 30 + 63 + 100) + 5;
-			mbst += (stats["spa"] * 2 + 30 + 63 + 100) + 5;
-			mbst += (stats["spd"] * 2 + 30 + 63 + 100) + 5;
-			mbst += (stats["spe"] * 2 + 30 + 63 + 100) + 5;
-
-			let level = Math.floor(100 * mbstmin / mbst); // Initial level guess will underestimate
-
-			while (level < 100) {
-				mbst = Math.floor((stats["hp"] * 2 + 30 + 63 + 100) * level / 100 + 10);
-				mbst += Math.floor(((stats["atk"] * 2 + 30 + 63 + 100) * level / 100 + 5) * level / 100); //since damage is roughly proportional to lvl
-				mbst += Math.floor((stats["def"] * 2 + 30 + 63 + 100) * level / 100 + 5);
-				mbst += Math.floor(((stats["spa"] * 2 + 30 + 63 + 100) * level / 100 + 5) * level / 100);
-				mbst += Math.floor((stats["spd"] * 2 + 30 + 63 + 100) * level / 100 + 5);
-				mbst += Math.floor((stats["spe"] * 2 + 30 + 63 + 100) * level / 100 + 5);
-
-				if (mbst >= mbstmin) break;
-				level++;
-			}
-
-			// Random DVs.
-			let ivs = {
-				hp: this.random(30),
-				atk: this.random(30),
-				def: this.random(30),
-				spa: this.random(30),
-				spd: this.random(30),
-				spe: this.random(30),
-			};
-
-			// Maxed EVs.
-			let evs = {hp: 255, atk: 255, def: 255, spa: 255, spd: 255,	spe: 255};
-
-			// Four random unique moves from movepool. don't worry about "attacking" or "viable".
-			// Since Gens 1 and 2 learnsets are shared, we need to weed out Gen 2 moves.
-			let moves;
-			let pool = [];
-			for (let move in template.learnset) {
-				if (this.getMove(move).gen === 1) pool.push(move);
-			}
-			if (pool.length <= 4) {
-				moves = pool;
-			} else {
-				moves = [this.sampleNoReplace(pool), this.sampleNoReplace(pool), this.sampleNoReplace(pool), this.sampleNoReplace(pool)];
-			}
-
-			team.push({
-				name: poke,
-				moves: moves,
-				ability: 'None',
-				evs: evs,
-				ivs: ivs,
-				item: '',
-				level: level,
-				happiness: 0,
-				shiny: false,
-				nature: 'Serious',
-			});
-		}
-
-		return team;
-	},
-	// Random team generation for Gen 1 Random Battles.
-	randomTeam: function (side) {
-		// Get what we need ready.
-		let pokemonLeft = 0;
-		let pokemon = [];
-
-		let handicapMons = {'magikarp':1, 'weedle':1, 'kakuna':1, 'caterpie':1, 'metapod':1, 'ditto':1};
-		let nuTiers = {'UU':1, 'BL':1, 'NFE':1, 'LC':1, 'NU':1};
-		let uuTiers = {'NFE':1, 'UU':1, 'BL':1, 'NU':1};
-
-		let n = 1;
-		let pokemonPool = [];
-		for (let id in this.data.FormatsData) {
-			// FIXME: Not ES-compliant
-			if (n++ > 151 || !this.data.FormatsData[id].randomBattleMoves) continue;
-			pokemonPool.push(id);
-		}
-
-		// Now let's store what we are getting.
-		let typeCount = {};
-		let weaknessCount = {'Electric':0, 'Psychic':0, 'Water':0, 'Ice':0};
-		let uberCount = 0;
-		let nuCount = 0;
-		let hasShitmon = false;
-
-		while (pokemonPool.length && pokemonLeft < 6) {
-			let template = this.getTemplate(this.sampleNoReplace(pokemonPool));
-			if (!template.exists) continue;
-
-			// Bias the tiers so you get less shitmons and only one of the two Ubers.
-			// If you have a shitmon, you're covered in OUs and Ubers if possible
-			if ((template.speciesid in handicapMons) && nuCount > 1) continue;
-
-			let tier = template.tier;
-			switch (tier) {
-			case 'LC':
-				if (nuCount > 1 || hasShitmon) continue;
-				break;
-			case 'Uber':
-				// Unless you have one of the worst mons, in that case we allow luck to give you all Ubers.
-				if (uberCount >= 1 && !hasShitmon) continue;
-				break;
-			default:
-				if (uuTiers[tier] && pokemonPool.length > 1 && (hasShitmon || (nuCount > 2 && this.random(2) >= 1))) continue;
-			}
-
-			let skip = false;
-
-			// Limit 2 of any type as well. Diversity and minor weakness count.
-			// The second of a same type has halved chance of being added.
-			let types = template.types;
-			for (let t = 0; t < types.length; t++) {
-				if (typeCount[types[t]] > 1 || (typeCount[types[t]] === 1 && this.random(2) && pokemonPool.length > 1)) {
-					skip = true;
-					break;
-				}
-			}
-			if (skip) continue;
-
-			// We need a weakness count of spammable attacks to avoid being swept by those.
-			// Spammable attacks are: Thunderbolt, Psychic, Surf, Blizzard.
-			let pokemonWeaknesses = [];
-			for (let type in weaknessCount) {
-				let increaseCount = Tools.getImmunity(type, template) && Tools.getEffectiveness(type, template) > 0;
-				if (!increaseCount) continue;
-				if (weaknessCount[type] >= 2) {
-					skip = true;
-					break;
-				}
-				pokemonWeaknesses.push(type);
-			}
-
-			if (skip) continue;
-
-			// The set passes the limitations.
-			let set = this.randomSet(template, pokemon.length);
-			pokemon.push(set);
-
-			// Now let's increase the counters. First, the Pokémon left.
-			pokemonLeft++;
-
-			// Type counter.
-			for (let t = 0; t < types.length; t++) {
-				if (typeCount[types[t]]) {
-					typeCount[types[t]]++;
-				} else {
-					typeCount[types[t]] = 1;
-				}
-			}
-
-			// Weakness counter.
-			for (let t = 0; t < pokemonWeaknesses.length; t++) {
-				weaknessCount[pokemonWeaknesses[t]]++;
-			}
-
-			// Increment tier bias counters.
-			if (tier === 'Uber') {
-				uberCount++;
-			} else if (nuTiers[tier]) {
-				nuCount++;
-			}
-
-			// Is it Magikarp?
-			if (template.speciesid in handicapMons) hasShitmon = true;
-		}
-
-		return pokemon;
-	},
-	// Random set generation for Gen 1 Random Battles.
-	randomSet: function (template, slot) {
-		if (slot === undefined) slot = 1;
-		template = this.getTemplate(template);
-		if (!template.exists) template = this.getTemplate('pikachu'); // Because Gen 1.
-
-		let movePool = template.randomBattleMoves.slice();
-		let moves = [];
-		let hasType = {};
-		hasType[template.types[0]] = true;
-		if (template.types[1]) hasType[template.types[1]] = true;
-		let hasMove = {};
-		let counter = {};
-		let setupType = '';
-
-		// Moves that boost Attack:
-		let PhysicalSetup = {
-			swordsdance:1, sharpen:1,
-		};
-		// Moves which boost Special Attack:
-		let SpecialSetup = {
-			amnesia:1, growth:1,
-		};
-
-		// Add the mandatory move
-		if (template.essentialMove) {
-			moves.push(template.essentialMove);
-		}
-		do {
-			// Choose next 4 moves from learnset/viable moves and add them to moves list:
-			while (moves.length < 4 && movePool.length) {
-				let moveid = this.sampleNoReplace(movePool);
-				moves.push(moveid);
-			}
-
-			// Only do move choosing if we have backup moves in the pool...
-			if (movePool.length) {
-				hasMove = {};
-				counter = {Physical: 0, Special: 0, Status: 0, physicalsetup: 0, specialsetup: 0};
-				for (let k = 0; k < moves.length; k++) {
-					let move = this.getMove(moves[k]);
-					let moveid = move.id;
-					hasMove[moveid] = true;
-					if (!move.damage && !move.damageCallback) {
-						counter[move.category]++;
-					}
-					if (PhysicalSetup[moveid]) {
-						counter['physicalsetup']++;
-					}
-					if (SpecialSetup[moveid]) {
-						counter['specialsetup']++;
-					}
-				}
-
-				if (counter['specialsetup']) {
-					setupType = 'Special';
-				} else if (counter['physicalsetup']) {
-					setupType = 'Physical';
-				}
-
-				for (let k = 0; k < moves.length; k++) {
-					let moveid = moves[k];
-					if (moveid === template.essentialMove) continue;
-					let move = this.getMove(moveid);
-					let rejected = false;
-					if (!template.essentialMove || moveid !== template.essentialMove) {
-						switch (moveid) {
-						// bad after setup
-						case 'seismictoss': case 'nightshade':
-							if (setupType) rejected = true;
-							break;
-						// bit redundant to have both
-						case 'flamethrower':
-							if (hasMove['fireblast']) rejected = true;
-							break;
-						case 'fireblast':
-							if (hasMove['flamethrower']) rejected = true;
-							break;
-						case 'icebeam':
-							if (hasMove['blizzard']) rejected = true;
-							break;
-						// Hydropump and surf are both valid options, just avoid one with eachother.
-						case 'hydropump':
-							if (hasMove['surf']) rejected = true;
-							break;
-						case 'surf':
-							if (hasMove['hydropump']) rejected = true;
-							break;
-						case 'petaldance': case 'solarbeam':
-							if (hasMove['megadrain'] || hasMove['razorleaf']) rejected = true;
-							break;
-						case 'megadrain':
-							if (hasMove['razorleaf']) rejected = true;
-							break;
-						case 'thunder':
-							if (hasMove['thunderbolt']) rejected = true;
-							break;
-						case 'thunderbolt':
-							if (hasMove['thunder']) rejected = true;
-							break;
-						case 'bonemerang':
-							if (hasMove['earthquake']) rejected = true;
-							break;
-						case 'rest':
-							if (hasMove['recover'] || hasMove['softboiled']) rejected = true;
-							break;
-						case 'softboiled':
-							if (hasMove['recover']) rejected = true;
-							break;
-						case 'sharpen':
-						case 'swordsdance':
-							if (counter['Special'] > counter['Physical'] || hasMove['slash'] || !counter['Physical'] || hasMove['growth']) rejected = true;
-							break;
-						case 'growth':
-							if (counter['Special'] < counter['Physical'] || hasMove['swordsdance'] || hasMove['amnesia']) rejected = true;
-							break;
-						case 'doubleedge':
-							if (hasMove['bodyslam']) rejected = true;
-							break;
-						case 'mimic':
-							if (hasMove['mirrormove']) rejected = true;
-							break;
-						case 'superfang':
-							if (hasMove['bodyslam']) rejected = true;
-							break;
-						case 'rockslide':
-							if (hasMove['earthquake'] && hasMove['bodyslam'] && hasMove['hyperbeam']) rejected = true;
-							break;
-						case 'bodyslam':
-							if (hasMove['thunderwave']) rejected = true;
-							break;
-						case 'bubblebeam':
-							if (hasMove['blizzard']) rejected = true;
-							break;
-						case 'screech':
-							if (hasMove['slash']) rejected = true;
-							break;
-						case 'slash':
-							if (hasMove['swordsdance']) rejected = true;
-							break;
-						case 'megakick':
-							if (hasMove['bodyslam']) rejected = true;
-							break;
-						case 'eggbomb':
-							if (hasMove['hyperbeam']) rejected = true;
-							break;
-						case 'triattack':
-							if (hasMove['doubleedge']) rejected = true;
-							break;
-						case 'fissure':
-							if (hasMove['horndrill']) rejected = true;
-							break;
-						case 'supersonic':
-							if (hasMove['confuseray']) rejected = true;
-							break;
-						case 'poisonpowder':
-							if (hasMove['toxic'] || counter['Status'] > 1) rejected = true;
-							break;
-						case 'stunspore':
-							if (hasMove['sleeppowder'] || counter['Status'] > 1) rejected = true;
-							break;
-						case 'sleeppowder':
-							if (hasMove['stunspore'] || counter['Status'] > 2) rejected = true;
-							break;
-						case 'toxic':
-							if (hasMove['sleeppowder'] || hasMove['stunspore'] || counter['Status'] > 1) rejected = true;
-							break;
-						} // End of switch for moveid
-					}
-					if (rejected) {
-						moves.splice(k, 1);
-						break;
-					}
-					counter[move.category]++;
-				} // End of for
-			} // End of the check for more than 4 moves on moveset.
-		} while (moves.length < 4 && movePool.length);
-
-		let levelScale = {
-			LC: 96,
-			NFE: 90,
-			NU: 90,
-			UU: 85,
-			OU: 79,
-			Uber: 74,
-		};
-		// Really bad Pokemon and jokemons, MEWTWO, Pokémon with higher tier in Wrap metas.
-		let customScale = {
-			Caterpie: 99, Kakuna: 99, Magikarp: 99, Metapod: 99, Weedle: 99,
-			Clefairy: 95, "Farfetch'd": 99, Jigglypuff: 99, Ditto: 99, Mewtwo: 70,
-			Dragonite: 85, Cloyster: 83, Staryu: 90,
-		};
-		let level = levelScale[template.tier] || 90;
-		if (customScale[template.name]) level = customScale[template.name];
-		if (template.name === 'Mewtwo' && hasMove['amnesia']) level = 68;
-
-		return {
-			name: template.name,
-			moves: moves,
-			ability: 'None',
-			evs: {hp: 255, atk: 255, def: 255, spa: 255, spd: 255, spe: 255},
-			ivs: {hp: 30, atk: 30, def: 30, spa: 30, spd: 30, spe: 30},
-			item: '',
-			level: level,
-			shiny: false,
-			gender: false,
-		};
 	},
 };

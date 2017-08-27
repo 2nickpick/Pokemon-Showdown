@@ -19,7 +19,7 @@ exports.BattleStatuses = {
 		onBeforeMovePriority: 2,
 		onBeforeMove: function (pokemon) {
 			if (this.random(4) === 0) {
-				this.add('cant', pokemon.id, 'par');
+				this.add('cant', pokemon, 'par');
 				return false;
 			}
 		},
@@ -27,9 +27,9 @@ exports.BattleStatuses = {
 	slp: {
 		effectType: 'Status',
 		onStart: function (target) {
-			this.add('-status', target.id, 'slp');
-			// 1-5 turns
-			this.effectData.time = this.random(2, 6);
+			this.add('-status', target, 'slp');
+			// 1-6 turns
+			this.effectData.time = this.random(2, 8);
 		},
 		onBeforeMovePriority: 10,
 		onBeforeMove: function (pokemon, target, move) {
@@ -38,7 +38,7 @@ exports.BattleStatuses = {
 				pokemon.cureStatus();
 				return;
 			}
-			this.add('cant', pokemon.id, 'slp');
+			this.add('cant', pokemon, 'slp');
 			if (move.sleepUsable) {
 				return;
 			}
@@ -109,7 +109,7 @@ exports.BattleStatuses = {
 				this.effectData.time = this.random(2, 6);
 			}
 		},
-		onBeforeMove: function (pokemon) {
+		onBeforeMove: function (pokemon, target, move) {
 			pokemon.volatiles.confusion.time--;
 			if (!pokemon.volatiles.confusion.time) {
 				pokemon.removeVolatile('confusion');
@@ -119,7 +119,17 @@ exports.BattleStatuses = {
 			if (this.random(2) === 0) {
 				return;
 			}
-			this.directDamage(this.getDamage(pokemon, pokemon, 40));
+			move = {
+				basePower: 40,
+				type: '???',
+				baseMoveType: move.type,
+				category: 'Physical',
+				willCrit: false,
+				isSelfHit: true,
+				noDamageVariance: true,
+				flags: {},
+			};
+			this.directDamage(this.getDamage(pokemon, pokemon, move));
 			return false;
 		},
 	},
@@ -167,22 +177,17 @@ exports.BattleStatuses = {
 	},
 	stall: {
 		duration: 2,
-		counterMax: 255,
 		onStart: function () {
-			this.effectData.counter = 255;
+			this.effectData.counter = 127;
 		},
 		onStallMove: function () {
-			// Gen 2 starts counting at x=255, x/256 and then halves x on every turn
-			let counter = this.effectData.counter || 255;
-			this.debug("Success chance: " + Math.round(counter / 256) + "% (" + counter + "/256)");
-			return (this.random(counter) === 0);
+			let counter = Math.floor(this.effectData.counter) || 127;
+			this.debug("Success chance: " + Math.round(counter * 1000 / 255) / 10 + "% (" + counter + "/255)");
+			return (this.random(255) < counter);
 		},
 		onRestart: function () {
-			if (this.effectData.counter > this.effect.counterMax) {
-				this.effectData.counter /= 2;
-				if (this.effectData.counter < 0) this.effectData.counter = 0;
-			}
-			this.effectData.duration = 255;
+			this.effectData.counter /= 2;
+			this.effectData.duration = 2;
 		},
 	},
 };

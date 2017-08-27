@@ -9,10 +9,6 @@ exports.BattleFormatsData = {
 		inherit: true,
 		tier: "OU",
 	},
-	cresselia: {
-		inherit: true,
-		tier: "Uber",
-	},
 	deoxysdefense: {
 		inherit: true,
 		tier: "OU",
@@ -25,11 +21,7 @@ exports.BattleFormatsData = {
 		inherit: true,
 		tier: "Uber",
 	},
-	greninja: {
-		inherit: true,
-		tier: "OU",
-	},
-	hoopaunbound: {
+	genesect: {
 		inherit: true,
 		tier: "OU",
 	},
@@ -41,13 +33,9 @@ exports.BattleFormatsData = {
 		inherit: true,
 		tier: "OU",
 	},
-	lucario: {
+	marshadow: {
 		inherit: true,
-		tier: "Uber",
-	},
-	manaphy: {
-		inherit: true,
-		tier: "Uber",
+		tier: "OU",
 	},
 	regigigas: {
 		inherit: true,

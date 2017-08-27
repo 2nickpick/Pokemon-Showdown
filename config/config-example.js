@@ -10,6 +10,12 @@ exports.port = 8000;
 //   know what you are doing.
 exports.proxyip = false;
 
+// ofe - write heapdumps if sockets.js workers run out of memory.
+//   If you wish to enable this, you will need to install ofe, as it is not a
+//   installed by default:
+//     $ npm install --no-save ofe
+exports.ofe = false;
+
 // Pokemon of the Day - put a pokemon's name here to make it Pokemon of the Day
 //   The PotD will always be in the #2 slot (not #1 so it won't be a lead)
 //   in every Random Battle team.
@@ -47,7 +53,10 @@ Y929lRybWEiKUr+4Yw2O1W0CAwEAAQ==
 // crashguardemail - if the server has been running for more than an hour
 //   and crashes, send an email using these settings, rather than locking down
 //   the server. Uncomment this definition if you want to use this feature;
-//   otherwise, all crashes will lock down the server.
+//   otherwise, all crashes will lock down the server. If you wish to enable
+//   this setting, you will need to install nodemailer, as it is not installed
+//   by default:
+//     $ npm install --no-save nodemailer
 /**exports.crashguardemail = {
 	options: {
 		host: 'mail.example.com',
@@ -95,6 +104,20 @@ exports.reportbattles = true;
 //   Note that the feature of turning this off is deprecated.
 exports.reportbattlejoins = true;
 
+// notify staff when users have a certain amount of room punishments.
+//   Setting this to a number greater than zero will notify staff for everyone with
+//   the required amount of room punishments.
+//   Set this to 0 to turn the monitor off.
+exports.monitorminpunishments = 3;
+
+// allow punishmentmonitor to lock users with multiple roombans.
+//	 When set to `true`, this feature will automatically lock any users with three or more
+//	 active roombans, and notify the staff room.
+//   Note that this requires punishmentmonitor to be enabled, and therefore requires the `monitorminpunishments`
+//   option to be set to a number greater than zero. If `monitorminpunishments` is set to a value greater than 3,
+//   the autolock will only apply to people who pass this threshold.
+exports.punishmentautolock = false;
+
 // whitelist - prevent users below a certain group from doing things
 //   For the modchat settings, false will allow any user to participate, while a string
 //   with a group symbol will restrict it to that group and above. The string
@@ -107,8 +130,10 @@ exports.reportbattlejoins = true;
 exports.chatmodchat = false;
 // battle modchat - default minimum group for speaking in battles; changeable with /modchat
 exports.battlemodchat = false;
-// pm modchat - minimum group for PMing other users, challenging other users, and laddering
+// pm modchat - minimum group for PMing other users, challenging other users
 exports.pmmodchat = false;
+// ladder modchat - minimum group for laddering
+exports.laddermodchat = false;
 
 // forced timer - force the timer on for all battles
 //   Players will be unable to turn it off.
@@ -164,6 +189,11 @@ exports.simulatorprocesses = 1;
 // from the `users` array. The default is 1 hour.
 exports.inactiveuserthreshold = 1000 * 60 * 60;
 
+// autolockdown - whether or not to automatically kill the server when it is
+// in lockdown mode and the final battle finishes.  This is potentially useful
+// to prevent forgetting to restart after a lockdown where battles are finished.
+exports.autolockdown = true;
+
 // Custom avatars.
 // This allows you to specify custom avatar images for users on your server.
 // Place custom avatar files under the /config/avatars/ directory.
@@ -179,18 +209,30 @@ exports.customavatars = {
 // tourroom - specify a room to receive tournament announcements (defaults to
 // the room 'tournaments').
 // tourannouncements - announcements are only allowed in these rooms
+// tourdefaultplayercap - a set cap of how many players can be in a tournament
+// ratedtours - toggles tournaments being ladder rated (true) or not (false)
 exports.tourroom = '';
 exports.tourannouncements = [/* roomids */];
+exports.tourdefaultplayercap = 0;
+exports.ratedtours = false;
 
 // appealurl - specify a URL containing information on how users can appeal
 // disciplinary actions on your section. You can also leave this blank, in
 // which case users won't be given any information on how to appeal.
 exports.appealurl = '';
 
+// repl - whether repl sockets are enabled or not
 // replsocketprefix - the prefix for the repl sockets to be listening on
 // replsocketmode - the file mode bits to use for the repl sockets
+exports.repl = true;
 exports.replsocketprefix = './logs/repl/';
 exports.replsocketmode = 0o600;
+
+// disablehotpatchall - disables `/hotpatch all`. Generally speaking, there's a
+// pretty big need for /hotpatch all - convenience. The only advantage any hotpatch
+// forms other than all is lower RAM use (which is only a problem for Main because
+// Main is huge), and to do pinpoint hotpatching (like /nohotpatch).
+exports.disablehotpatchall = false;
 
 // permissions and groups:
 //   Each entry in `grouplist' is a seperate group. Some of the members are "special"
@@ -291,7 +333,7 @@ exports.grouplist = [
 		gamemanagement: true,
 	},
 	{
-		symbol: '\u2605',
+		symbol: '\u2606',
 		id: "player",
 		name: "Player",
 		inherit: '+',
@@ -333,9 +375,9 @@ exports.grouplist = [
 		inherit: '+',
 		jurisdiction: 'u',
 		announce: true,
-		warn: '\u2605u',
+		warn: '\u2606u',
 		kick: true,
-		mute: '\u2605u',
+		mute: '\u2606u',
 		lock: true,
 		forcerename: true,
 		timer: true,
@@ -359,5 +401,17 @@ exports.grouplist = [
 	{
 		symbol: ' ',
 		ip: 's',
+	},
+	{
+		name: 'Locked',
+		id: 'locked',
+		symbol: '‽',
+		punishgroup: 'LOCK',
+	},
+	{
+		name: 'Muted',
+		id: 'muted',
+		symbol: '!',
+		punishgroup: 'MUTE',
 	},
 ];

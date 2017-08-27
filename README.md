@@ -14,7 +14,7 @@ Navigation: [Website][1] | **Server repository** | [Client repository][2] | [Dex
 Introduction
 ------------------------------------------------------------------------
 
-This is the source code for the game server of [Pokémon Showdown][4], a website for Pokémon battling. Pokémon Showdown simulates singles, doubles and triples battles in all the games out so far (Generations 1 through 6).
+This is the source code for the game server of [Pokémon Showdown][4], a website for Pokémon battling. Pokémon Showdown simulates singles, doubles and triples battles in all the games out so far (Generations 1 through 7).
 
 This repository contains the files needed to set up your own Pokémon Showdown server. Note that to set up a server, you'll also need a server computer.
 
@@ -29,15 +29,15 @@ Installing
 
     ./pokemon-showdown
 
-(Requires Node.js 6+)
+(Requires Node.js 8+)
 
 
 Detailed installation instructions
 ------------------------------------------------------------------------
 
-Pokémon Showdown requires you to have [Node.js][6] installed, 6.x or later.
+Pokémon Showdown requires you to have [Node.js][6] installed, 8.x or later (7.7 or later can work, but you might as well be on the latest stable).
 
-Next, obtain a copy of Pokémon Showdown. If you're reading this outside of GitHub, you've probably already done this. If you're reading this in GitHub, there's a "Save" icon button near the top right (next to "Download ZIP"), or if you're really lazy, you can use the "Download ZIP" button. I recommend the Save method - it's more time-consuming to set up, but much easier to update.
+Next, obtain a copy of Pokémon Showdown. If you're reading this outside of GitHub, you've probably already done this. If you're reading this in GitHub, there's a "Clone or download" button near the top right (it's green). I recommend the "Open in Desktop" method - you need to install GitHub Desktop which is more work than "Download ZIP", but it makes it much easier to update in the long run (it lets you use the `/updateserver` command).
 
 Pokémon Showdown is installed and run using a command line. In Mac OS X, open `Terminal` (it's in Utilities). In Windows, open `Command Prompt` (type `cmd` into the Start menu and it should be the first result). Type this into the command line:
 
@@ -122,13 +122,17 @@ You can also visit the [Pokémon Showdown forums][8] for discussion and help.
 
   [8]: http://www.smogon.com/forums/forums/pok%C3%A9mon-showdown.209/
 
+If you'd like to contribute to programming and don't know where to start, feel free to check out [Ideas for New Developers][9].
+
+  [9]: https://github.com/Zarel/Pokemon-Showdown/issues/2444
+
 
 License
 ------------------------------------------------------------------------
 
-Pokémon Showdown's server is distributed under the terms of the [MIT License][9].
+Pokémon Showdown's server is distributed under the terms of the [MIT License][10].
 
-  [9]: https://github.com/Zarel/Pokemon-Showdown/blob/master/LICENSE
+  [10]: https://github.com/Zarel/Pokemon-Showdown/blob/master/LICENSE
 
 
 Credits
@@ -141,7 +145,6 @@ Owner
 Staff
 
 - Chris Monsanto [chaos] - Sysadmin
-- Juanma Serrano [Joim] - Development, Sysadmin
 - Leonardo Julca [Slayer95] - Development
 - Mathieu Dias-Martins [Marty-D] - Research (game mechanics), Development
 - [The Immortal] - Development
@@ -151,9 +154,11 @@ Retired Staff
 - Bill Meltsner [bmelts] - Development, Sysadmin
 - Cathy J. Fitzpatrick [cathyjf] - Development, Sysadmin
 - Hugh Gordon [V4] - Research (game mechanics), Development
+- Juanma Serrano [Joim] - Development, Sysadmin
 
 Major Contributors
 
+- Bär Halberkamp [bumbadadabum] - Development
 - Kevin Lau [Ascriptmaster] - Development, Art (battle animations)
 - Konrad Borowski [xfix] - Development
 - Quinton Lee [sirDonovan] - Development
@@ -161,16 +166,16 @@ Major Contributors
 Contributors
 
 - Andrew Goodsell [Zracknel] - Art (battle weather backdrops)
-- Bär Halberkamp [bumbadadabum] - Development
+- Avery Zimmer [Lyren, SolarisFox] - Development
 - Ben Davies [Morfent] - Development
 - Ben Frengley [TalkTakesTime] - Development
 - Cody Thompson [Rising_Dusk] - Development
 - Ian Clail [Layell] - Art (battle graphics, sprites)
-- Jacob Zimmer [SolarisFox] - Development
 - Jeremy Piemonte [panpawn] - Development
 - Neil Rashbrook [urkerab] - Development
 - Robin Vandenbrande [Quinella] - Development
 - [Ridaz] - Art (battle animations)
+- Tobias Mann [asgdf] - Development
 
 Special thanks
 
